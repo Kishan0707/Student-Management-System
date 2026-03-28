@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Timetable — EduManage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100">
+<div id="toast-container"></div>
+<div id="sidebar"></div>
+
+<div id="main-content">
+  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 py-3 flex items-center justify-between gap-4" id="navbar"></header>
+
+  <main class="p-6 page-enter">
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div>
+        <p class="text-sm text-slate-400 mt-0.5">Drag and drop subjects to rearrange the timetable</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <select id="tt-class-select" onchange="renderTimetable()" class="form-input w-36 py-2">
+          <option>10-A</option><option>10-B</option><option>11-A</option><option>11-B</option><option>12-A</option><option>12-B</option>
+        </select>
+        <button onclick="resetTimetable()" class="btn btn-secondary text-sm">Reset</button>
+        <button onclick="saveTimetable()" class="btn btn-primary text-sm">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          Save
+        </button>
+      </div>
+    </div>
+
+    <!-- Subject Palette -->
+    <div class="card p-4 mb-5">
+      <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Subject Palette — Drag to timetable</div>
+      <div id="subject-palette" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Timetable Grid -->
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <div id="timetable-grid" class="p-4" style="min-width:700px"></div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-4 mt-4 text-xs text-slate-400">
+      <span>💡 Tip: Drag subjects from the palette or between cells to rearrange</span>
+      <span>🔄 Click "Reset" to restore default timetable</span>
+    </div>
+  </main>
+</div>
+
+<script src="app.js"></script>
+<script src="components.js"></script>
+<script>
+// ===== timetable.js (inline) =====
+
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const PERIODS = ['Period 1\n8:00–8:45', 'Period 2\n8:45–9:30', 'Period 3\n9:45–10:30', 'Period 4\n10:30–11:15', 'Period 5\n11:30–12:15', 'Period 6\n12:15–1:00'];
+const PERIOD_LABELS = ['P1 · 8:00', 'P2 · 8:45', 'P3 · 9:45', 'P4 · 10:30', 'P5 · 11:30', 'P6 · 12:15'];
+const ALL_SUBJECTS = ['Mathematics','Science','English','History','Computer','P.E.','Art','Music','Library','Free'];
+const SUBJECT_COLORS = {
+  'Mathematics': 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+  'Science':     'linear-gradient(135deg,#10b981,#059669)',
+  'English':     'linear-gradient(135deg,#3b82f6,#2563eb)',
+  'History':     'linear-gradient(135deg,#f59e0b,#d97706)',
+  'Computer':    'linear-gradient(135deg,#ec4899,#db2777)',
+  'P.E.':        'linear-gradient(135deg,#ef4444,#dc2626)',
+  'Art':         'linear-gradient(135deg,#8b5cf6,#7c3aed)',
+  'Music':       'linear-gradient(135deg,#06b6d4,#0891b2)',
+  'Library':     'linear-gradient(135deg,#84cc16,#65a30d)',
+  'Free':        'linear-gradient(135deg,#94a3b8,#64748b)'
+};
+
+let dragSource = null; // { day, period } or { palette: subject }
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderSidebar('timetable');
+  renderNavbar('Timetable');
+  renderPalette();
+  renderTimetable();
+});
+
+function getTimetable() {
+  return Store.get('timetable', {
+    'Monday':    ['Mathematics','English','Science','History','Computer','P.E.'],
+    'Tuesday':   ['Science','Mathematics','English','Computer','History','Art'],
+    'Wednesday': ['English','History','Mathematics','Science','Art','P.E.'],
+    'Thursday':  ['Computer','Science','History','Mathematics','English','Music'],
+    'Friday':    ['History','Computer','P.E.','English','Mathematics','Science']
+  });
+}
+
+function renderPalette() {
+  document.getElementById('subject-palette').innerHTML = ALL_SUBJECTS.map(sub => `
+    <div class="timetable-item" style="background:${SUBJECT_COLORS[sub]||'#6366f1'};width:auto;padding:8px 14px;font-size:13px"
+      draggable="true"
+      ondragstart="onPaletteDragStart(event,'${sub}')"
+    >${sub}</div>`).join('');
+}
+
+function renderTimetable() {
+  const tt = getTimetable();
+  const grid = document.getElementById('timetable-grid');
+
+  // Header row
+  let html = `<div style="display:grid;grid-template-columns:100px repeat(${DAYS.length},1fr);gap:8px;margin-bottom:8px">`;
+  html += `<div></div>`;
+  DAYS.forEach(d => {
+    html += `<div class="text-center text-sm font-semibold text-slate-700 dark:text-slate-200 py-2">${d}</div>`;
+  });
+  html += `</div>`;
+
+  // Period rows
+  PERIOD_LABELS.forEach((label, pi) => {
+    html += `<div style="display:grid;grid-template-columns:100px repeat(${DAYS.length},1fr);gap:8px;margin-bottom:8px">`;
+    html += `<div class="flex items-center justify-center text-xs text-slate-400 font-medium text-center leading-tight">${label}</div>`;
+    DAYS.forEach(day => {
+      const subject = (tt[day] || [])[pi] || '';
+      const bg = SUBJECT_COLORS[subject] || 'none';
+      html += `
+        <div class="timetable-cell"
+          data-day="${day}" data-period="${pi}"
+          ondragover="onDragOver(event)"
+          ondragleave="onDragLeave(event)"
+          ondrop="onDrop(event,'${day}',${pi})"
+        >
+          ${subject ? `
+            <div class="timetable-item"
+              style="background:${bg}"
+              draggable="true"
+              ondragstart="onCellDragStart(event,'${day}',${pi})"
+            >${subject}</div>` : `<span class="text-xs text-slate-300 dark:text-slate-600">Drop here</span>`}
+        </div>`;
+    });
+    html += `</div>`;
+  });
+
+  grid.innerHTML = html;
+}
+
+// ── Drag Handlers ──────────────────────────────────────────────────────────────
+function onPaletteDragStart(e, subject) {
+  dragSource = { palette: subject };
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
+function onCellDragStart(e, day, period) {
+  dragSource = { day, period };
+  e.dataTransfer.effectAllowed = 'move';
+  e.stopPropagation();
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function onDrop(e, targetDay, targetPeriod) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragSource) return;
+
+  const tt = getTimetable();
+  if (!tt[targetDay]) tt[targetDay] = Array(6).fill('');
+
+  if (dragSource.palette) {
+    // From palette → cell
+    tt[targetDay][targetPeriod] = dragSource.palette;
+  } else {
+    // Cell → cell swap
+    const srcSubject = (tt[dragSource.day] || [])[dragSource.period] || '';
+    const tgtSubject = tt[targetDay][targetPeriod] || '';
+    if (!tt[dragSource.day]) tt[dragSource.day] = Array(6).fill('');
+    tt[dragSource.day][dragSource.period] = tgtSubject;
+    tt[targetDay][targetPeriod] = srcSubject;
+  }
+
+  Store.set('timetable', tt);
+  dragSource = null;
+  renderTimetable();
+}
+
+function saveTimetable() {
+  Toast.show('Timetable saved successfully', 'success');
+}
+
+function resetTimetable() {
+  Store.set('timetable', {
+    'Monday':    ['Mathematics','English','Science','History','Computer','P.E.'],
+    'Tuesday':   ['Science','Mathematics','English','Computer','History','Art'],
+    'Wednesday': ['English','History','Mathematics','Science','Art','P.E.'],
+    'Thursday':  ['Computer','Science','History','Mathematics','English','Music'],
+    'Friday':    ['History','Computer','P.E.','English','Mathematics','Science']
+  });
+  renderTimetable();
+  Toast.show('Timetable reset to default', 'info');
+}
+</script>
+</body>
+</html>

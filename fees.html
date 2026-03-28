@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fees — EduManage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100">
+<div id="toast-container"></div>
+<div id="sidebar"></div>
+
+<div id="main-content">
+  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 py-3 flex items-center justify-between gap-4" id="navbar"></header>
+
+  <main class="p-6 page-enter">
+    <!-- Stats -->
+    <div id="fee-stats" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5"></div>
+
+    <!-- Chart + Overdue -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+      <div class="card p-6 lg:col-span-2">
+        <h3 class="font-semibold text-slate-800 dark:text-slate-100 mb-4">Collection Overview</h3>
+        <div style="height:200px"><canvas id="fee-chart"></canvas></div>
+      </div>
+      <div class="card p-6">
+        <h3 class="font-semibold text-slate-800 dark:text-slate-100 mb-4">Payment Status</h3>
+        <div style="height:160px" class="flex items-center justify-center"><canvas id="fee-donut"></canvas></div>
+        <div id="fee-legend" class="mt-3 space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="search-bar w-60">
+          <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+          <input id="fee-search" type="text" placeholder="Search student…" oninput="filterFees()"/>
+        </div>
+        <select id="fee-status-filter" onchange="filterFees()" class="form-input w-36 py-2">
+          <option value="">All Status</option>
+          <option>Paid</option><option>Pending</option><option>Partial</option>
+        </select>
+        <select id="fee-class-filter" onchange="filterFees()" class="form-input w-36 py-2">
+          <option value="">All Classes</option>
+          <option>10-A</option><option>10-B</option><option>11-A</option><option>11-B</option><option>12-A</option><option>12-B</option>
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="exportFees()" class="btn btn-secondary text-sm">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export
+        </button>
+        <button onclick="openPaymentModal()" class="btn btn-primary text-sm">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Record Payment
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th class="hide-mobile">Class</th>
+              <th>Total Fee</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Progress</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="fees-tbody"></tbody>
+        </table>
+      </div>
+      <div class="px-4 py-3 border-t border-slate-100 dark:border-slate-700" id="fees-pagination"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Payment Modal -->
+<div id="payment-modal" class="modal-overlay" onclick="if(event.target===this)Modal.close('payment-modal')">
+  <div class="modal-box max-w-md">
+    <div class="flex items-center justify-between mb-6">
+      <h2 id="payment-modal-title" class="text-xl font-bold text-slate-800 dark:text-slate-100">Record Payment</h2>
+      <button onclick="Modal.close('payment-modal')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="payment-form" onsubmit="savePayment(event)" novalidate>
+      <input type="hidden" name="feeId"/>
+      <div class="space-y-4">
+        <div>
+          <label class="form-label">Student *</label>
+          <select name="studentId" id="payment-student-select" class="form-input" onchange="onStudentSelect()">
+            <option value="">Select student</option>
+          </select>
+          <div class="form-error" data-error="studentId"></div>
+        </div>
+        <div id="fee-info-box" class="hidden p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-sm"></div>
+        <div>
+          <label class="form-label">Amount Paid *</label>
+          <input name="amount" type="number" min="1" class="form-input" placeholder="0.00"/>
+          <div class="form-error" data-error="amount"></div>
+        </div>
+        <div>
+          <label class="form-label">Payment Date</label>
+          <input name="paymentDate" type="date" class="form-input"/>
+        </div>
+        <div>
+          <label class="form-label">Payment Method</label>
+          <select name="method" class="form-input">
+            <option>Cash</option><option>Bank Transfer</option><option>Online</option><option>Cheque</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button type="button" onclick="Modal.close('payment-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Record Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script src="components.js"></script>
+<script src="fees.js"></script>
+</body>
+</html>

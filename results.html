@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Results — EduManage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100">
+<div id="toast-container"></div>
+<div id="sidebar"></div>
+
+<div id="main-content">
+  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 py-3 flex items-center justify-between gap-4" id="navbar"></header>
+
+  <main class="p-6 page-enter">
+    <!-- Stats -->
+    <div id="result-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5"></div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+      <div class="card p-6">
+        <h3 class="font-semibold text-slate-800 dark:text-slate-100 mb-4">Grade Distribution</h3>
+        <div style="height:200px"><canvas id="grade-chart"></canvas></div>
+      </div>
+      <div class="card p-6">
+        <h3 class="font-semibold text-slate-800 dark:text-slate-100 mb-4">Subject-wise Average</h3>
+        <div style="height:200px"><canvas id="subject-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="search-bar w-60">
+          <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+          <input id="result-search" type="text" placeholder="Search student…" oninput="filterResults()"/>
+        </div>
+        <select id="result-class-filter" onchange="filterResults()" class="form-input w-36 py-2">
+          <option value="">All Classes</option>
+          <option>10-A</option><option>10-B</option><option>11-A</option><option>11-B</option><option>12-A</option><option>12-B</option>
+        </select>
+        <select id="result-grade-filter" onchange="filterResults()" class="form-input w-32 py-2">
+          <option value="">All Grades</option>
+          <option>A+</option><option>A</option><option>B+</option><option>B</option><option>C</option>
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="exportResults()" class="btn btn-secondary text-sm">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export
+        </button>
+        <button onclick="openResultModal()" class="btn btn-primary text-sm">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Add Result
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th class="hide-mobile">Class</th>
+              <th class="hide-mobile">Exam</th>
+              <th>Subjects</th>
+              <th>Percentage</th>
+              <th>Grade</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+      <div class="px-4 py-3 border-t border-slate-100 dark:border-slate-700" id="results-pagination"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Result Detail Modal -->
+<div id="result-detail-modal" class="modal-overlay" onclick="if(event.target===this)Modal.close('result-detail-modal')">
+  <div class="modal-box">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">Result Details</h2>
+      <button onclick="Modal.close('result-detail-modal')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="result-detail-content"></div>
+  </div>
+</div>
+
+<!-- Add Result Modal -->
+<div id="result-modal" class="modal-overlay" onclick="if(event.target===this)Modal.close('result-modal')">
+  <div class="modal-box">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">Add Result</h2>
+      <button onclick="Modal.close('result-modal')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="result-form" onsubmit="saveResult(event)" novalidate>
+      <div class="space-y-4">
+        <div>
+          <label class="form-label">Student *</label>
+          <select name="studentId" id="result-student-select" class="form-input">
+            <option value="">Select student</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Exam Name *</label>
+          <input name="exam" class="form-input" placeholder="Mid-Term 2024" value="Mid-Term 2024"/>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Mathematics</label><input name="math" type="number" min="0" max="100" class="form-input" placeholder="0-100"/></div>
+          <div><label class="form-label">Science</label><input name="science" type="number" min="0" max="100" class="form-input" placeholder="0-100"/></div>
+          <div><label class="form-label">English</label><input name="english" type="number" min="0" max="100" class="form-input" placeholder="0-100"/></div>
+          <div><label class="form-label">History</label><input name="history" type="number" min="0" max="100" class="form-input" placeholder="0-100"/></div>
+          <div><label class="form-label">Computer</label><input name="computer" type="number" min="0" max="100" class="form-input" placeholder="0-100"/></div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button type="button" onclick="Modal.close('result-modal')" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Result</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script src="components.js"></script>
+<script src="results.js"></script>
+</body>
+</html>
