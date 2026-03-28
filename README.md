@@ -1,12 +1,19 @@
-"# Student-Management-System"
-🔥 Student Management System
+# 🚀 Student Management System
 
-Features:
+A modern admin dashboard for managing students, attendance, fees, and results.
+
+## 🔥 Features
 
 - Student CRUD
 - Attendance tracking
 - Fee management
 - Results system
-- Responsive dashboard
+- Responsive design
 
-Live Demo: (Vercel link)
+## 🌐 Live Demo
+
+https://student-management-system-beta-khaki.vercel.app/index.html
+
+## 📸 Screenshots
+
+(images)
